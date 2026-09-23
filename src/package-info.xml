@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<!DOCTYPE package-info SYSTEM "http://www.simplemachines.org/xml/package-info">
+<package-info xmlns="http://www.simplemachines.org/xml/package-info" xmlns:smf="http://www.simplemachines.org/">
+	<id>Bugo:SpamJudge</id>
+	<name>Spam Judge</name>
+	<version>0.1</version>
+	<type>modification</type>
+
+	<install for="2.1.*">
+		<readme parsebbc="true" lang="english" type="file">readme/english.txt</readme>
+		<readme parsebbc="true" lang="russian" type="file">readme/russian.txt</readme>
+
+		<hook hook="integrate_pre_load" function="SpamJudge::hooks#" file="$sourcedir/SpamJudge.php" />
+
+		<require-dir name="Sources" destination="$boarddir" />
+		<require-dir name="Themes" destination="$boarddir" />
+
+		<database>database.php</database>
+
+		<redirect url="?action=admin;area=spamjudge" timeout="2000" />
+	</install>
+
+	<uninstall for="2.1.*">
+		<hook hook="integrate_pre_load" function="SpamJudge::hooks#" file="$sourcedir/SpamJudge.php" reverse="true" />
+
+		<remove-file name="$sourcedir/SpamJudge.php" />
+		<remove-file name="$languagedir/SpamJudge.english.php" />
+		<remove-file name="$languagedir/SpamJudge.russian.php" />
+
+		<redirect url="?action=admin;area=packages;sa=browse" timeout="1000" />
+	</uninstall>
+</package-info>

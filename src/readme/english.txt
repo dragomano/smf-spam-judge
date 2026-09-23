@@ -1,0 +1,19 @@
+[size=4]Spam Judge[/size]
+
+A standalone SMF mod that classifies new registrations and first posts using a typed decision model (such as Jev/TypeSafe, or any similar classification model that may appear later) via an API gateway of your choice (Vercel AI Gateway, OpenRouter, Cloudflare Workers AI, etc). The model and gateway are fully configurable, so you can switch to a different provider or model at any time without reinstalling the mod.
+
+[b]Features[/b]
+[list]
+[*] Classifies registration data and first posts as ham / spam / review
+[*] Configurable confidence threshold for automatic action
+[*] Restricts flagged accounts by moving them into a membergroup you choose
+[*] Unapproves flagged first posts instead of silently deleting them
+[*] Full decision log with probabilities, available in the admin panel
+[*] Fail-open: if the gateway is unreachable, posting/registration is never blocked
+[/list]
+
+[b]Setup[/b]
+After installing, go to Admin -> Configuration -> Spam Judge -> Settings and fill in your gateway URL and API key. Pick or create a membergroup to restrict flagged accounts to.
+
+[b]Disclaimer[/b]
+This mod calls a third-party AI service. Make sure this complies with your forum's privacy policy and applicable regulations (e.g. GDPR) before enabling it.
