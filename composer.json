@@ -1,0 +1,31 @@
+{
+    "autoload": {
+        "psr-4": {
+            "SpamJudge\\": "src\\Sources"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests"
+        }
+    },
+    "require": {
+        "php": "^8.2"
+    },
+    "require-dev": {
+        "rector/rector": "^2.6",
+        "testo/testo": "^0.10"
+    },
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "8.2"
+        }
+    },
+    "scripts": {
+        "check": "vendor/bin/rector process --dry-run --clear-cache",
+        "rector": "vendor/bin/rector process",
+        "test": "vendor/bin/testo",
+        "test:coverage": "vendor/bin/testo --coverage"
+    }
+}
