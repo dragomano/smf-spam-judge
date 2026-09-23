@@ -144,9 +144,12 @@ final class Environment
         $router = tempnam(sys_get_temp_dir(), 'spam-judge-router-');
         file_put_contents($router, $routerBody);
         $port = random_int(20000, 40000);
+        $null = \DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
+        // Array form skips the shell wrapper, so $process is the PHP server itself on
+        // every platform and proc_terminate() can reliably shut it down afterwards.
         $process = proc_open(
-            PHP_BINARY . ' -S 127.0.0.1:' . $port . ' ' . escapeshellarg($router),
-            [1 => ['file', 'NUL', 'w'], 2 => ['file', 'NUL', 'w']],
+            [PHP_BINARY, '-S', '127.0.0.1:' . $port, $router],
+            [1 => ['file', $null, 'w'], 2 => ['file', $null, 'w']],
             $pipes,
         );
 
@@ -172,17 +175,10 @@ final class Environment
 
     public static function stopGateway(mixed $process): void
     {
-        if (! is_resource($process)) {
-            return;
+        if (is_resource($process)) {
+            proc_terminate($process);
+            proc_close($process);
         }
-
-        $status = proc_get_status($process);
-
-        if ($status['running']) {
-            exec('taskkill /PID ' . (int) $status['pid'] . ' /T /F > NUL 2>&1');
-        }
-
-        proc_close($process);
 
         foreach ($GLOBALS['spam_judge_gateway_routers'] as $router) {
             if (is_file($router)) {
