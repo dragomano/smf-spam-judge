@@ -1,6 +1,5 @@
 <?php
 
-$txt['spam_judge']                   = 'Spam Judge';
 $txt['spam_judge_type']              = 'Type';
 $txt['spam_judge_verdict']           = 'Verdict';
 $txt['spam_judge_action']            = 'Action';
@@ -9,7 +8,7 @@ $txt['spam_judge_action_restricted'] = 'moved to restricted group';
 $txt['spam_judge_action_unapproved'] = 'unapproved';
 $txt['spam_judge_no_items']          = 'No log entries found';
 
-$txt['spam_judge_enabled']          = 'Enable Spam Judge';
+$txt['spam_judge_enabled']          = 'Enable %s';
 $txt['spam_judge_api_type']         = 'API Provider';
 $txt['spam_judge_gateway_url']      = 'API gateway URL';
 $txt['spam_judge_gateway_url_desc'] = 'https://api.typesafe.ai/v1/systemone, https://api.openai.com/v1/decisions, etc.';
@@ -32,4 +31,4 @@ $txt['spam_judge_error_invalid_answer']        = 'the gateway response did not c
 $txt['spam_judge_error_invalid_probabilities'] = 'the probabilities in the gateway response have an invalid format.';
 
 $txt['spam_judge_settings_description'] = 'Configure the System One gateway, model, and automatic checks for new users and their messages.';
-$txt['spam_judge_logs_description']     = 'This page shows the registration and message checks performed by Spam Judge.';
+$txt['spam_judge_logs_description']     = 'This page shows the registration and message checks performed by %s.';

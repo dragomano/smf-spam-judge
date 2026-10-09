@@ -79,7 +79,7 @@ final class Environment
         $GLOBALS['user_info']   = [];
 
         $GLOBALS['txt'] = [
-            'spam_judge'                             => 'Spam Judge',
+            'spam_judge_enabled'                     => 'Enable %s',
             'spam_judge_error_invalid_json'          => 'invalid JSON',
             'spam_judge_error_invalid_response'      => 'invalid response',
             'spam_judge_error_invalid_answer'        => 'invalid answer',

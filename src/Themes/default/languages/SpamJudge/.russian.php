@@ -1,6 +1,5 @@
 <?php
 
-$txt['spam_judge']                   = 'Spam Judge';
 $txt['spam_judge_type']              = 'Тип';
 $txt['spam_judge_verdict']           = 'Вердикт';
 $txt['spam_judge_action']            = 'Действие';
@@ -9,7 +8,7 @@ $txt['spam_judge_action_restricted'] = 'ограничен';
 $txt['spam_judge_action_unapproved'] = 'неодобрено';
 $txt['spam_judge_no_items']          = 'Записей пока нет';
 
-$txt['spam_judge_enabled']          = 'Включить Spam Judge';
+$txt['spam_judge_enabled']          = 'Включить %s';
 $txt['spam_judge_api_type']         = 'Провайдер API';
 $txt['spam_judge_gateway_url']      = 'URL-адрес шлюза API';
 $txt['spam_judge_gateway_url_desc'] = 'https://api.typesafe.ai/v1/systemone, https://api.openai.com/v1/decisions и т. д.';
@@ -32,4 +31,4 @@ $txt['spam_judge_error_invalid_answer']        = 'в ответе шлюза о�
 $txt['spam_judge_error_invalid_probabilities'] = 'вероятности в ответе шлюза имеют некорректный формат.';
 
 $txt['spam_judge_settings_description'] = 'Настройте подключение к шлюзу System One, модель и правила автоматической проверки новых пользователей и их сообщений.';
-$txt['spam_judge_logs_description']     = 'Здесь отображаются результаты проверок регистраций и сообщений, выполненных модулем Spam Judge.';
+$txt['spam_judge_logs_description']     = 'Здесь отображаются результаты проверок регистраций и сообщений, выполненных %s.';

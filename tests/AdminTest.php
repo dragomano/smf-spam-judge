@@ -42,6 +42,7 @@ final class AdminTest
         (new Integration())->settings();
 
         Assert::same($GLOBALS['context']['page_title'], 'Spam Judge');
+        Assert::same($GLOBALS['txt']['spam_judge_enabled'], 'Enable Spam Judge');
         Assert::same($GLOBALS['context']['settings_title'], 'Settings');
         Assert::notBlank($GLOBALS['spam_judge_prepared_settings']);
     }
@@ -57,7 +58,7 @@ final class AdminTest
         $GLOBALS['context']  = ['admin_menu_name' => 'admin'];
         $GLOBALS['txt']     += [
             'spam_judge_settings_description' => 'Settings description',
-            'spam_judge_logs_description'     => 'Logs description',
+            'spam_judge_logs_description'     => 'Logs description for %s',
         ];
 
         $_REQUEST = ['sa' => 'logs'];
@@ -65,7 +66,7 @@ final class AdminTest
         (new Integration())->main();
 
         Assert::same($GLOBALS['context']['admin']['tab_data']['title'], 'Spam Judge');
-        Assert::same($GLOBALS['context']['admin']['tab_data']['tabs']['logs']['description'], 'Logs description');
+        Assert::same($GLOBALS['context']['admin']['tab_data']['tabs']['logs']['description'], 'Logs description for Spam Judge');
         Assert::same($GLOBALS['context']['sub_template'], 'show_list');
         Assert::same($GLOBALS['context']['default_list'], 'spam_judge_logs_list');
     }

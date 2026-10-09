@@ -137,7 +137,7 @@ final class Integration
 		require_once($sourcedir . '/ManageSettings.php');
 
 		$admin_areas['config']['areas']['spamjudge'] = [
-			'label'    => $txt['spam_judge'],
+			'label'    => self::NAME,
 			'function' => $this->main(...),
 			'icon'     => 'security',
 			'subsections' => [
@@ -159,13 +159,13 @@ final class Integration
 		loadGeneralSettingParameters($subActions, 'settings');
 
 		$context[$context['admin_menu_name']]['tab_data'] = [
-			'title' => $txt['spam_judge'],
+			'title' => self::NAME,
 			'tabs'  => [
 				'settings' => [
 					'description' => $txt['spam_judge_settings_description'],
 				],
 				'logs' => [
-					'description' => $txt['spam_judge_logs_description'],
+					'description' => sprintf($txt['spam_judge_logs_description'], self::NAME),
 				],
 			],
 		];
@@ -191,6 +191,8 @@ final class Integration
 
 		$modSettings['spam_judge_spam_threshold'] ??= 0.95;
 
+		$txt['spam_judge_enabled'] = sprintf($txt['spam_judge_enabled'], self::NAME);
+
 		$groups = $this->getGroups();
 
 		$config_vars = [
@@ -205,7 +207,7 @@ final class Integration
 			['select', 'spam_judge_restricted_group', $groups],
 		];
 
-		$context['page_title']     = $txt['spam_judge'];
+		$context['page_title']     = self::NAME;
 		$context['settings_title'] = $txt['settings'];
 		$context['post_url']       = $scripturl . '?action=admin;area=spamjudge;save;sa=settings';
 
@@ -518,9 +520,7 @@ final class Integration
 
 	private function logError(string $message): void
 	{
-		global $txt;
-
-		log_error($txt['spam_judge'] . ': ' . $message);
+		log_error(self::NAME . ': ' . $message);
 	}
 
 	private function isSpamConfident(array $probabilities): bool
