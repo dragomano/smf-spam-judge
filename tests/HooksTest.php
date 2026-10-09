@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Bugo\SpamJudge\Integration;
 use Testo\Assert;
 use Testo\Codecov\Covers;
 use Testo\Test;
@@ -9,28 +10,40 @@ use Testo\Test;
 require_once __DIR__ . '/Environment.php';
 
 #[Test]
-#[Covers(SpamJudge::class)]
+#[Covers(Integration::class)]
 final class HooksTest
 {
     public function registersHooks(): void
     {
         Environment::reset();
 
-        (new SpamJudge())->hooks();
+        (new Integration())->hooks();
 
         Assert::same($GLOBALS['spam_judge_hooks'], [
-            ['integrate_post_register', SpamJudge::class . '::onRegister#', false],
-            ['integrate_after_create_post', SpamJudge::class . '::onPost#', false],
-            ['integrate_admin_areas', SpamJudge::class . '::adminAreas#', false],
+            ['integrate_autoload', Integration::class . '::autoload#', false],
+            ['integrate_post_register', Integration::class . '::onRegister#', false],
+            ['integrate_after_create_post', Integration::class . '::onPost#', false],
+            ['integrate_admin_areas', Integration::class . '::adminAreas#', false],
         ]);
+    }
+
+    public function registersClassMapForAutoload(): void
+    {
+        Environment::reset();
+
+        $classMap = [];
+        (new Integration())->autoload($classMap);
+
+        Assert::same($classMap, ['Bugo\\SpamJudge\\' => 'SpamJudge/']);
     }
 
     public function skipsRegistrationWhenDisabled(): void
     {
         Environment::reset();
+
         $GLOBALS['modSettings'] = ['spam_judge_enabled' => 0];
 
-        (new SpamJudge())->onRegister(['username' => 'bot', 'email' => 'bot@example.com'], [], 42);
+        (new Integration())->onRegister(['username' => 'bot', 'email' => 'bot@example.com'], [], 42);
 
         Assert::same($GLOBALS['spam_judge_inserts'], []);
         Assert::same($GLOBALS['spam_judge_errors'], []);
@@ -39,10 +52,11 @@ final class HooksTest
     public function skipsRegistrationForModerators(): void
     {
         Environment::reset();
-        $GLOBALS['modSettings'] = ['spam_judge_enabled' => 1];
-        $GLOBALS['user_info'] = ['is_mod' => true];
 
-        (new SpamJudge())->onRegister(['username' => 'bot', 'email' => 'bot@example.com'], [], 42);
+        $GLOBALS['modSettings'] = ['spam_judge_enabled' => 1];
+        $GLOBALS['user_info']   = ['is_mod' => true];
+
+        (new Integration())->onRegister(['username' => 'bot', 'email' => 'bot@example.com'], [], 42);
 
         Assert::same($GLOBALS['spam_judge_inserts'], []);
     }
@@ -50,9 +64,10 @@ final class HooksTest
     public function skipsEmptyRegistrationData(): void
     {
         Environment::reset();
+
         $GLOBALS['modSettings'] = ['spam_judge_enabled' => 1];
 
-        (new SpamJudge())->onRegister([], [], 42);
+        (new Integration())->onRegister([], [], 42);
 
         Assert::same($GLOBALS['spam_judge_inserts'], []);
     }
@@ -60,9 +75,10 @@ final class HooksTest
     public function skipsRegistrationWithoutMemberID(): void
     {
         Environment::reset();
+
         $GLOBALS['modSettings'] = ['spam_judge_enabled' => 1];
 
-        (new SpamJudge())->onRegister(['username' => 'bot', 'email' => 'bot@example.com'], [], 0);
+        (new Integration())->onRegister(['username' => 'bot', 'email' => 'bot@example.com'], [], 0);
 
         Assert::same($GLOBALS['spam_judge_inserts'], []);
         Assert::same($GLOBALS['spam_judge_errors'], []);
@@ -71,9 +87,10 @@ final class HooksTest
     public function skipsPostWhenFirstPostCheckDisabled(): void
     {
         Environment::reset();
+
         $GLOBALS['modSettings'] = ['spam_judge_enabled' => 1];
 
-        (new SpamJudge())->onPost(['body' => 'message'], [], ['id' => 42]);
+        (new Integration())->onPost(['body' => 'message'], [], ['id' => 42]);
 
         Assert::same($GLOBALS['spam_judge_inserts'], []);
         Assert::same($GLOBALS['spam_judge_errors'], []);
@@ -82,14 +99,16 @@ final class HooksTest
     public function skipsPostWithEmptyContent(): void
     {
         Environment::reset();
+
         $GLOBALS['modSettings'] = [
-            'spam_judge_enabled' => 1,
+            'spam_judge_enabled'          => 1,
             'spam_judge_check_first_post' => 1,
-            'spam_judge_post_threshold' => 1,
+            'spam_judge_post_threshold'   => 1,
         ];
+
         $GLOBALS['user_info'] = ['posts' => 0];
 
-        (new SpamJudge())->onPost(['body' => ''], [], ['id' => 42]);
+        (new Integration())->onPost(['body' => ''], [], ['id' => 42]);
 
         Assert::same($GLOBALS['spam_judge_inserts'], []);
         Assert::same($GLOBALS['spam_judge_errors'], []);
@@ -98,14 +117,16 @@ final class HooksTest
     public function skipsPostWhenClassificationFails(): void
     {
         Environment::reset();
+
         $GLOBALS['modSettings'] = [
-            'spam_judge_enabled' => 1,
+            'spam_judge_enabled'          => 1,
             'spam_judge_check_first_post' => 1,
-            'spam_judge_post_threshold' => 1,
+            'spam_judge_post_threshold'   => 1,
         ];
+
         $GLOBALS['user_info'] = ['posts' => 0];
 
-        (new SpamJudge())->onPost(['body' => 'message'], [], ['id' => 42]);
+        (new Integration())->onPost(['body' => 'message'], [], ['id' => 42]);
 
         Assert::same($GLOBALS['spam_judge_inserts'], []);
         Assert::count($GLOBALS['spam_judge_errors'], 1);
@@ -114,14 +135,16 @@ final class HooksTest
     public function skipsPostWhenMemberIsPastThreshold(): void
     {
         Environment::reset();
+
         $GLOBALS['modSettings'] = [
-            'spam_judge_enabled' => 1,
+            'spam_judge_enabled'          => 1,
             'spam_judge_check_first_post' => 1,
-            'spam_judge_post_threshold' => 3,
+            'spam_judge_post_threshold'   => 3,
         ];
+
         $GLOBALS['user_info'] = ['posts' => 4];
 
-        (new SpamJudge())->onPost(['body' => 'message'], [], ['id' => 42]);
+        (new Integration())->onPost(['body' => 'message'], [], ['id' => 42]);
 
         Assert::same($GLOBALS['spam_judge_inserts'], []);
     }

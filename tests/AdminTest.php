@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Bugo\SpamJudge\Integration;
 use Testo\Assert;
 use Testo\Codecov\Covers;
 use Testo\Test;
@@ -9,34 +10,36 @@ use Testo\Test;
 require_once __DIR__ . '/Environment.php';
 
 #[Test]
-#[Covers(SpamJudge::class)]
+#[Covers(Integration::class)]
 final class AdminTest
 {
     public function settingsReturnsConfigurationAndUsesDefaultModel(): void
     {
         Environment::reset();
-        $GLOBALS['sourcedir'] = sys_get_temp_dir();
-        $GLOBALS['context'] = [];
-        $GLOBALS['txt'] += ['settings' => 'Settings'];
-        $GLOBALS['scripturl'] = 'https://example.test/index.php';
 
-        $config = (new SpamJudge())->settings(true);
+        $GLOBALS['sourcedir']  = sys_get_temp_dir();
+        $GLOBALS['context']    = [];
+        $GLOBALS['txt']       += ['settings' => 'Settings'];
+        $GLOBALS['scripturl']  = 'https://example.test/index.php';
+
+        $config = (new Integration())->settings(true);
 
         Assert::same($GLOBALS['modSettings']['spam_judge_model'], 'jev-latest');
         Assert::same($GLOBALS['modSettings']['spam_judge_spam_threshold'], 0.95);
         Assert::same($config[0], ['check', 'spam_judge_enabled']);
-        Assert::same($config[7][1], 'spam_judge_restricted_group');
+        Assert::same($config[8][1], 'spam_judge_restricted_group');
     }
 
     public function settingsPreparesContextWhenNotSaving(): void
     {
         Environment::reset();
-        $GLOBALS['sourcedir'] = sys_get_temp_dir();
-        $GLOBALS['context'] = [];
-        $GLOBALS['txt'] += ['settings' => 'Settings'];
-        $GLOBALS['scripturl'] = 'https://example.test/index.php';
 
-        (new SpamJudge())->settings();
+        $GLOBALS['sourcedir']  = sys_get_temp_dir();
+        $GLOBALS['context']    = [];
+        $GLOBALS['txt']       += ['settings' => 'Settings'];
+        $GLOBALS['scripturl']  = 'https://example.test/index.php';
+
+        (new Integration())->settings();
 
         Assert::same($GLOBALS['context']['page_title'], 'Spam Judge');
         Assert::same($GLOBALS['context']['settings_title'], 'Settings');
@@ -46,16 +49,20 @@ final class AdminTest
     public function mainUsesLogsSubActionAndBuildsAdminContext(): void
     {
         Environment::reset();
+
         $GLOBALS['sourcedir'] = sys_get_temp_dir();
+
         file_put_contents($GLOBALS['sourcedir'] . '/Subs-List.php', '<?php');
-        $GLOBALS['context'] = ['admin_menu_name' => 'admin'];
-        $GLOBALS['txt'] += [
+
+        $GLOBALS['context']  = ['admin_menu_name' => 'admin'];
+        $GLOBALS['txt']     += [
             'spam_judge_settings_description' => 'Settings description',
-            'spam_judge_logs_description' => 'Logs description',
+            'spam_judge_logs_description'     => 'Logs description',
         ];
+
         $_REQUEST = ['sa' => 'logs'];
 
-        (new SpamJudge())->main();
+        (new Integration())->main();
 
         Assert::same($GLOBALS['context']['admin']['tab_data']['title'], 'Spam Judge');
         Assert::same($GLOBALS['context']['admin']['tab_data']['tabs']['logs']['description'], 'Logs description');
@@ -68,7 +75,7 @@ final class AdminTest
         Environment::reset();
         $GLOBALS['spam_judge_db_rows'] = [['id_log' => 1], ['id_log' => 2], null];
 
-        $judge = new SpamJudge();
+        $judge = new Integration();
         Assert::same($judge->listGetLogs(0, 20, 'log_time DESC'), [['id_log' => 1], ['id_log' => 2]]);
 
         $GLOBALS['spam_judge_db_rows'] = [['total' => 3]];
@@ -78,12 +85,15 @@ final class AdminTest
     public function adminAreasRegistersSpamJudgeSection(): void
     {
         Environment::reset();
+
         $GLOBALS['sourcedir'] = sys_get_temp_dir();
+
         file_put_contents($GLOBALS['sourcedir'] . '/ManageSettings.php', '<?php');
+
         $GLOBALS['txt'] += ['settings' => 'Settings'];
 
         $admin_areas = ['config' => ['areas' => []]];
-        (new SpamJudge())->adminAreas($admin_areas);
+        (new Integration())->adminAreas($admin_areas);
 
         Assert::same($admin_areas['config']['areas']['spamjudge']['label'], 'Spam Judge');
         Assert::same($admin_areas['config']['areas']['spamjudge']['icon'], 'security');
@@ -93,17 +103,20 @@ final class AdminTest
     public function mainFallsBackToSettingsSubAction(): void
     {
         Environment::reset();
-        $GLOBALS['sourcedir'] = sys_get_temp_dir();
-        $GLOBALS['context'] = ['admin_menu_name' => 'admin'];
-        $GLOBALS['txt'] += [
-            'settings' => 'Settings',
+
+        $GLOBALS['sourcedir']  = sys_get_temp_dir();
+        $GLOBALS['context']    = ['admin_menu_name' => 'admin'];
+        $GLOBALS['txt']       += [
+            'settings'                        => 'Settings',
             'spam_judge_settings_description' => 'Settings description',
-            'spam_judge_logs_description' => 'Logs description',
+            'spam_judge_logs_description'     => 'Logs description',
         ];
+
         $GLOBALS['scripturl'] = 'https://example.test/index.php';
+
         $_REQUEST = ['sa' => 'settings'];
 
-        (new SpamJudge())->main();
+        (new Integration())->main();
 
         Assert::notBlank($GLOBALS['spam_judge_prepared_settings']);
     }
@@ -111,17 +124,19 @@ final class AdminTest
     public function settingsSavesAndRedirectsWhenRequested(): void
     {
         Environment::reset();
-        $GLOBALS['sourcedir'] = sys_get_temp_dir();
-        $GLOBALS['context'] = [];
-        $GLOBALS['txt'] += ['settings' => 'Settings'];
-        $GLOBALS['scripturl'] = 'https://example.test/index.php';
+
+        $GLOBALS['sourcedir']  = sys_get_temp_dir();
+        $GLOBALS['context']    = [];
+        $GLOBALS['txt']       += ['settings' => 'Settings'];
+        $GLOBALS['scripturl']  = 'https://example.test/index.php';
+
         $_GET = ['save' => ''];
 
         $redirected = false;
 
         try {
-            (new SpamJudge())->settings();
-        } catch (\RuntimeException $exception) {
+            (new Integration())->settings();
+        } catch (RuntimeException $exception) {
             $redirected = true;
             Assert::same($exception->getMessage(), 'redirect:action=admin;area=spamjudge;sa=settings');
         }
@@ -134,14 +149,32 @@ final class AdminTest
     public function settingsListsRestrictableMemberGroups(): void
     {
         Environment::reset();
-        $GLOBALS['sourcedir'] = sys_get_temp_dir();
-        $GLOBALS['context'] = [];
-        $GLOBALS['txt'] += ['settings' => 'Settings'];
-        $GLOBALS['scripturl'] = 'https://example.test/index.php';
-        $GLOBALS['spam_judge_db_rows'] = [['id_group' => 2, 'group_name' => 'Members']];
 
-        $config = (new SpamJudge())->settings(true);
+        $GLOBALS['sourcedir']           = sys_get_temp_dir();
+        $GLOBALS['context']             = [];
+        $GLOBALS['txt']                += ['settings' => 'Settings'];
+        $GLOBALS['scripturl']           = 'https://example.test/index.php';
+        $GLOBALS['spam_judge_db_rows']  = [['id_group' => 2, 'group_name' => 'Members']];
 
-        Assert::same($config[7][2][2], 'Members');
+        $config = (new Integration())->settings(true);
+
+        Assert::same($config[8][2][2], 'Members');
+    }
+
+    public function settingsDefaultModelFollowsApiType(): void
+    {
+        Environment::reset();
+
+        $GLOBALS['sourcedir']    = sys_get_temp_dir();
+        $GLOBALS['context']      = [];
+        $GLOBALS['txt']         += ['settings' => 'Settings'];
+        $GLOBALS['scripturl']    = 'https://example.test/index.php';
+        $GLOBALS['modSettings']  = ['spam_judge_api_type' => 'openai'];
+
+        $config = (new Integration())->settings(true);
+
+        Assert::same($GLOBALS['modSettings']['spam_judge_model'], 'gpt-6-luna');
+        Assert::same($config[1][2]['system_one'], 'TypeSafe System One');
+        Assert::same($config[1][2]['openai'], 'OpenAI Decisions');
     }
 }

@@ -9,11 +9,12 @@
 
 Spam Judge — модификация для [Simple Machines Forum (SMF) 2.1](https://www.simplemachines.org/). Она классифицирует новые регистрации и первые сообщения через настраиваемый API-шлюз ИИ и может автоматически ограничивать подозрительные аккаунты или снимать с одобрения подозрительные сообщения.
 
-Шлюз и модель не зашиты в модификацию. Можно использовать совместимый эндпойнт Vercel AI Gateway, OpenRouter, Cloudflare Workers AI или другого сервиса, который возвращает ответ в формате, описанном ниже.
+Шлюз и модель не зашиты в модификацию. Можно использовать совместимый эндпойнт Vercel AI Gateway, OpenRouter, Cloudflare Workers AI или другого сервиса, который возвращает ответ в одном из форматов, описанных ниже.
 
 ## Возможности
 
 - Классификация данных регистрации и первых сообщений как `ham`, `spam` или `review`.
+- Поддержка обоих форматов шлюза: TypeSafe System One и OpenAI Decisions.
 - Настраиваемый порог уверенности в спаме для автоматических действий.
 - Перенос новых аккаунтов с высокой вероятностью спама в выбранную группу SMF.
 - Снятие с одобрения подозрительных первых сообщений вместо их удаления.
@@ -25,15 +26,16 @@ Spam Judge — модификация для [Simple Machines Forum (SMF) 2.1](h
 
 - SMF 2.1.
 - Расширения PHP, используемые SMF и модификацией, включая cURL и `mbstring`.
-- API-шлюз, принимающий запрос и возвращающий ответ в формате ниже.
+- API-шлюз, принимающий запрос и возвращающий ответ в одном из форматов ниже (TypeSafe System One или OpenAI Decisions).
 
 ## Настройка
 
 На странице настроек доступны следующие параметры:
 
 - **URL шлюза** — эндпойнт, принимающий JSON-запрос классификации.
+- **Тип API** — формат запроса и ответа: `TypeSafe System One` (по умолчанию) или `OpenAI Decisions`.
 - **API-ключ** — передаётся в заголовке `Authorization: Bearer <API-ключ>`.
-- **Модель** — по умолчанию `jev-latest`.
+- **Модель** — по умолчанию `jev-latest` для TypeSafe System One и `gpt-6-luna` для OpenAI Decisions.
 - **Порог уверенности в спаме** — значение от `0` до `1`, по умолчанию `0.95`.
 - **Проверять первые сообщения** — включает классификацию сообщений участников, число сообщений которых не превышает заданный лимит.
 - **Лимит сообщений нового участника** — определяет, какие участники считаются новыми для проверки первых сообщений.
@@ -43,17 +45,22 @@ Spam Judge — модификация для [Simple Machines Forum (SMF) 2.1](h
 
 ## Шлюзы
 
-| Агрегатор | Шлюз | Модель |
-|-----------|------|--------|
-| [Polza.ai](https://polza.ai/?referral=f8C85aRMPd) | `https://polza.ai/api/v1/systemone` | `typesafe/jev` |
-| [Codiv](https://codiv.ai) | `https://api.codiv.ai/v1/systemone` | `openjev-latest` |
-| [Experiential Labs](https://www.experientiallabs.ai/) | `https://api.experientiallabs.ai/v1/systemone` | `jev-latest` |
-| [Jev AI](https://jevmodel.org/how-to-use-jev/) | `https://api.typesafe.ai/v1/systemone` | `jev-latest` |
-| [Vercel](https://vercel.com/changelog/ai-gateway-now-supports-typesafe-clients-and-http-api-for-jev) | `https://ai-gateway.vercel.sh/typesafe` | `typesafe-ai/jev` |
+| Агрегатор | Шлюз | Тип API | Модель |
+|-----------|------|---------|--------|
+| [Polza.ai](https://polza.ai/?referral=f8C85aRMPd) | `https://polza.ai/api/v1/systemone` | TypeSafe System One | `typesafe/jev` |
+| [Codiv](https://codiv.ai) | `https://api.codiv.ai/v1/systemone` | TypeSafe System One | `openjev-latest` |
+| [Experiential Labs](https://www.experientiallabs.ai/) | `https://api.experientiallabs.ai/v1/systemone` | TypeSafe System One | `jev-latest` |
+| [Jev AI](https://jevmodel.org/how-to-use-jev/) | `https://api.typesafe.ai/v1/systemone` | TypeSafe System One | `jev-latest` |
+| [Vercel](https://vercel.com/changelog/ai-gateway-now-supports-typesafe-clients-and-http-api-for-jev) | `https://ai-gateway.vercel.sh/typesafe` | TypeSafe System One | `typesafe-ai/jev` |
+| [Decisions](https://developers.openai.com/api/docs/guides/decisions) | `https://api.openai.com/v1/decisions` | OpenAI Decisions | `gpt-6-luna` |
 
 ## Контракт шлюза
 
-Spam Judge отправляет `POST` с заголовками `Content-Type: application/json` и bearer-токеном. Структура запроса:
+Spam Judge отправляет `POST` с заголовками `Content-Type: application/json` и bearer-токеном. Структура запроса и ответа зависит от выбранного **типа API**.
+
+### TypeSafe System One
+
+Тип API по умолчанию. Запрос:
 
 ```json
 {
@@ -75,7 +82,7 @@ Spam Judge отправляет `POST` с заголовками `Content-Type: 
 }
 ```
 
-Шлюз должен вернуть успешный JSON-ответ следующего вида:
+Ответ:
 
 ```json
 {
@@ -93,7 +100,67 @@ Spam Judge отправляет `POST` с заголовками `Content-Type: 
 }
 ```
 
-Значение `choice` должно быть одним из `ham`, `spam` или `review`. Каждая вероятность должна быть конечным числом от `0` до `1`. Автоматическое действие выполняется только когда выбран `spam` и вероятность `spam` достигает настроенного порога.
+### OpenAI Decisions
+
+Запрос:
+
+```json
+{
+  "model": "gpt-6-luna",
+  "input": "Содержимое для классификации",
+  "questions": [
+    {
+      "name": "classification",
+      "type": "choice",
+      "instructions": "...",
+      "choices": [
+        {
+          "value": "ham",
+          "description": "..."
+        },
+        {
+          "value": "spam",
+          "description": "..."
+        },
+        {
+          "value": "review",
+          "description": "..."
+        }
+      ]
+    }
+  ]
+}
+```
+
+Ответ:
+
+```json
+{
+  "answers": [
+    {
+      "name": "classification",
+      "type": "choice",
+      "choice": "spam",
+      "probabilities": [
+        {
+          "value": "ham",
+          "probability": 0.01
+        },
+        {
+          "value": "spam",
+          "probability": 0.98
+        },
+        {
+          "value": "review",
+          "probability": 0.01
+        }
+      ]
+    }
+  ]
+}
+```
+
+Правила для обоих форматов одинаковы: `choice` — это `ham`, `spam` или `review`, а в `probabilities` должны быть все три значения в виде конечных чисел от `0` до `1`. Мод выполняет действие автоматически только тогда, когда выбран `spam` и его вероятность достигает заданного порога.
 
 ## Конфиденциальность и безопасность
 

@@ -10,7 +10,9 @@ $txt['spam_judge_action_unapproved'] = 'неодобрено';
 $txt['spam_judge_no_items']          = 'Записей пока нет';
 
 $txt['spam_judge_enabled']          = 'Включить Spam Judge';
-$txt['spam_judge_gateway_url']      = 'URL шлюза System One API';
+$txt['spam_judge_api_type']         = 'Провайдер API';
+$txt['spam_judge_gateway_url']      = 'URL-адрес шлюза API';
+$txt['spam_judge_gateway_url_desc'] = 'https://api.typesafe.ai/v1/systemone, https://api.openai.com/v1/decisions и т. д.';
 $txt['spam_judge_api_key']          = 'API-ключ шлюза';
 $txt['spam_judge_model']            = 'Модель';
 $txt['spam_judge_spam_threshold']   = 'Порог уверенности в спаме (0–1)';

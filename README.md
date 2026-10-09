@@ -9,11 +9,12 @@
 
 Spam Judge is a modification for [Simple Machines Forum (SMF) 2.1](https://www.simplemachines.org/). It classifies new registrations and first posts through a configurable AI API gateway and can automatically restrict accounts or unapprove suspicious messages.
 
-The gateway and model are not hard-coded. You can use a compatible endpoint provided by Vercel AI Gateway, OpenRouter, Cloudflare Workers AI, or another service that implements the response format described below.
+The gateway and model are not hard-coded. You can use a compatible endpoint provided by Vercel AI Gateway, OpenRouter, Cloudflare Workers AI, or another service that implements one of the response formats described below.
 
 ## Features
 
 - Classifies registration data and first posts as `ham`, `spam`, or `review`.
+- Supports both the TypeSafe System One and OpenAI Decisions gateway formats.
 - Configures the spam confidence threshold used for automatic actions.
 - Moves confidently flagged new accounts to a selected SMF membergroup.
 - Unapproves confidently flagged first posts instead of deleting them.
@@ -25,15 +26,16 @@ The gateway and model are not hard-coded. You can use a compatible endpoint prov
 
 - SMF 2.1.
 - PHP extensions used by SMF and the mod, including cURL and `mbstring`.
-- An API gateway that accepts the request and returns the response shape below.
+- An API gateway that accepts the request and returns one of the response shapes below (TypeSafe System One or OpenAI Decisions).
 
 ## Configuration
 
 The settings page contains:
 
 - **Gateway URL**: endpoint receiving the JSON classification request.
+- **API type**: request/response format, either `TypeSafe System One` (default) or `OpenAI Decisions`.
 - **API key**: sent as `Authorization: Bearer <API key>`.
-- **Model**: defaults to `jev-latest`.
+- **Model**: defaults to `jev-latest` for TypeSafe System One and `gpt-6-luna` for OpenAI Decisions.
 - **Spam confidence threshold**: a value from `0` to `1`; defaults to `0.95`.
 - **Check first posts**: enables classification of posts from members whose post count is at or below the configured limit.
 - **New member post limit**: controls which members are considered new for first-post checks.
@@ -43,17 +45,22 @@ The registration payload contains the username and email address. Post checks se
 
 ## Gateways
 
-| Aggregator | Gateway | Model |
-|------------|---------|-------|
-| [Jev AI](https://jevmodel.org/how-to-use-jev/) | `https://api.typesafe.ai/v1/systemone` | `jev-latest` |
-| [Codiv](https://codiv.ai) | `https://api.codiv.ai/v1/systemone` | `openjev-latest` |
-| [Experiential Labs](https://www.experientiallabs.ai/) | `https://api.experientiallabs.ai/v1/systemone` | `jev-latest` |
-| [Vercel](https://vercel.com/changelog/ai-gateway-now-supports-typesafe-clients-and-http-api-for-jev) | `https://ai-gateway.vercel.sh/typesafe` | `typesafe-ai/jev` |
-| [Polza.ai](https://polza.ai/?referral=f8C85aRMPd) | `https://polza.ai/api/v1/systemone` | `typesafe/jev` |
+| Aggregator | Gateway | API type | Model |
+|------------|---------|----------|-------|
+| [Jev AI](https://jevmodel.org/how-to-use-jev/) | `https://api.typesafe.ai/v1/systemone` | TypeSafe System One | `jev-latest` |
+| [Codiv](https://codiv.ai) | `https://api.codiv.ai/v1/systemone` | TypeSafe System One | `openjev-latest` |
+| [Experiential Labs](https://www.experientiallabs.ai/) | `https://api.experientiallabs.ai/v1/systemone` | TypeSafe System One | `jev-latest` |
+| [Vercel](https://vercel.com/changelog/ai-gateway-now-supports-typesafe-clients-and-http-api-for-jev) | `https://ai-gateway.vercel.sh/typesafe` | TypeSafe System One | `typesafe-ai/jev` |
+| [Polza.ai](https://polza.ai/?referral=f8C85aRMPd) | `https://polza.ai/api/v1/systemone` | TypeSafe System One | `typesafe/jev` |
+| [Decisions](https://developers.openai.com/api/docs/guides/decisions) | `https://api.openai.com/v1/decisions` | OpenAI Decisions | `gpt-6-luna` |
 
 ## Gateway Contract
 
-Spam Judge sends a `POST` request with `Content-Type: application/json` and a bearer token. The request has this shape:
+Spam Judge sends a `POST` request with `Content-Type: application/json` and a bearer token. The request and response shape depends on the selected **API type**.
+
+### TypeSafe System One
+
+The default API type. Request:
 
 ```json
 {
@@ -75,7 +82,7 @@ Spam Judge sends a `POST` request with `Content-Type: application/json` and a be
 }
 ```
 
-The gateway must return a successful JSON response with this structure:
+Response:
 
 ```json
 {
@@ -93,7 +100,67 @@ The gateway must return a successful JSON response with this structure:
 }
 ```
 
-`choice` must be one of `ham`, `spam`, or `review`. Each probability must be a finite number between `0` and `1`. The mod takes an automatic action only when the choice is `spam` and the `spam` probability reaches the configured threshold.
+### OpenAI Decisions
+
+Request:
+
+```json
+{
+  "model": "gpt-6-luna",
+  "input": "Content to classify",
+  "questions": [
+    {
+      "name": "classification",
+      "type": "choice",
+      "instructions": "...",
+      "choices": [
+        {
+          "value": "ham",
+          "description": "..."
+        },
+        {
+          "value": "spam",
+          "description": "..."
+        },
+        {
+          "value": "review",
+          "description": "..."
+        }
+      ]
+    }
+  ]
+}
+```
+
+Response:
+
+```json
+{
+  "answers": [
+    {
+      "name": "classification",
+      "type": "choice",
+      "choice": "spam",
+      "probabilities": [
+        {
+          "value": "ham",
+          "probability": 0.01
+        },
+        {
+          "value": "spam",
+          "probability": 0.98
+        },
+        {
+          "value": "review",
+          "probability": 0.01
+        }
+      ]
+    }
+  ]
+}
+```
+
+Both formats use the same rules: `choice` is `ham`, `spam`, or `review`, and `probabilities` must list all three as finite numbers from `0` to `1`. The mod acts automatically only when `spam` is chosen and its probability reaches the configured threshold.
 
 ## Privacy and Safety
 

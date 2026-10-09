@@ -1,26 +1,36 @@
 <?php
 
 /**
- * SpamJudge.php
- *
  * @package Spam Judge
  * @author  Bugo
  * @copyright 2026 Bugo
  * @license https://opensource.org/licenses/BSD-3-Clause BSD
  *
- * @version 0.1
+ * @version 0.2
  */
+
+namespace Bugo\SpamJudge;
+
+use JsonException;
 
 if (! defined('SMF'))
 	die('No direct access...');
 
-final class SpamJudge
+final class Integration
 {
+	private const NAME = 'Spam Judge';
+
 	public function hooks(): void
 	{
+		add_integration_function('integrate_autoload', self::class . '::autoload#', false);
 		add_integration_function('integrate_post_register', self::class . '::onRegister#', false);
 		add_integration_function('integrate_after_create_post', self::class . '::onPost#', false);
 		add_integration_function('integrate_admin_areas', self::class . '::adminAreas#', false);
+	}
+
+	public function autoload(array &$classMap): void
+	{
+		$classMap['Bugo\\SpamJudge\\'] = 'SpamJudge/';
 	}
 
 	public function onRegister(array $regOptions, array $theme_vars, int $memberID): void
@@ -122,7 +132,7 @@ final class SpamJudge
 	{
 		global $sourcedir, $txt;
 
-		loadLanguage('SpamJudge');
+		loadLanguage('SpamJudge/');
 
 		require_once($sourcedir . '/ManageSettings.php');
 
@@ -173,8 +183,10 @@ final class SpamJudge
 	{
 		global $context, $modSettings, $txt, $scripturl;
 
+		$apiType = ApiType::tryFrom($modSettings['spam_judge_api_type'] ?? '') ?? ApiType::SystemOne;
+
 		if (empty($modSettings['spam_judge_model'])) {
-			$modSettings['spam_judge_model'] = 'jev-latest';
+			$modSettings['spam_judge_model'] = $apiType->defaultModel();
 		}
 
 		$modSettings['spam_judge_spam_threshold'] ??= 0.95;
@@ -183,7 +195,8 @@ final class SpamJudge
 
 		$config_vars = [
 			['check', 'spam_judge_enabled'],
-			['text', 'spam_judge_gateway_url', 60],
+			['select', 'spam_judge_api_type', ApiType::options()],
+			['text', 'spam_judge_gateway_url', 60, 'desc' => $txt['spam_judge_gateway_url_desc']],
 			['text', 'spam_judge_api_key', 60],
 			['text', 'spam_judge_model', 60],
 			['float', 'spam_judge_spam_threshold', 'step' => 0.01, 'max' => 1],
@@ -214,6 +227,7 @@ final class SpamJudge
 		global $context, $sourcedir, $txt, $scripturl;
 
 		$context['page_title'] = $txt['logs'];
+
 		$actionLabels = [
 			'none'       => $txt['spam_judge_action_none'],
 			'restricted' => $txt['spam_judge_action_restricted'],
@@ -300,11 +314,10 @@ final class SpamJudge
 	{
 		global $modSettings, $txt;
 
-		loadLanguage('SpamJudge');
+		loadLanguage('SpamJudge/');
 
 		$gateway = trim($modSettings['spam_judge_gateway_url'] ?? '');
 		$apiKey  = trim($modSettings['spam_judge_api_key'] ?? '');
-		$model   = trim($modSettings['spam_judge_model'] ?? '') ?: 'jev-latest';
 
 		if ($gateway === '' || $apiKey === '') {
 			$this->logError($txt['spam_judge_error_missing_config']);
@@ -312,27 +325,11 @@ final class SpamJudge
 			return null;
 		}
 
+		$apiType = ApiType::tryFrom($modSettings['spam_judge_api_type'] ?? '') ?? ApiType::SystemOne;
+		$model   = trim($modSettings['spam_judge_model'] ?? '') ?: $apiType->defaultModel();
+
 		try {
-			$payload = json_encode([
-				'model' => $model,
-				'state' => [
-					'content' => mb_substr($content, 0, 10000),
-				],
-				'questions' => [
-					'classification' => [
-						'type' => 'choice',
-						'instructions' => 'Classify the supplied forum content for anti-spam moderation. '
-							. 'Choose spam only for clearly unsolicited or deceptive promotional content. '
-							. 'Choose ham for legitimate user content. '
-							. 'Choose review when the content is ambiguous or there is not enough evidence.',
-						'criteria' => [
-							'ham'    => 'Legitimate forum content, including ordinary discussion, questions, and relevant links.',
-							'spam'   => 'Unsolicited or deceptive promotion, link farming, or automated spam.',
-							'review' => 'Ambiguous content or insufficient evidence to confidently classify as ham or spam.',
-						],
-					],
-				],
-			], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+			$payload = $this->buildPayload($apiType, $model, $content);
 		} catch (JsonException) {
 			$this->logError($txt['spam_judge_error_encode']);
 
@@ -380,6 +377,65 @@ final class SpamJudge
 		return $this->parseResponse($response);
 	}
 
+	/**
+	 * @throws JsonException
+	 */
+	private function buildPayload(ApiType $apiType, string $model, string $content): string
+	{
+		$truncated = mb_substr($content, 0, 10000);
+
+		$instructions = 'Classify the supplied forum content for anti-spam moderation. '
+			. 'Choose spam only for clearly unsolicited or deceptive promotional content. '
+			. 'Choose ham for legitimate user content. '
+			. 'Choose review when the content is ambiguous or there is not enough evidence.';
+
+		$criteria = [
+			'ham'    => 'Legitimate forum content, including ordinary discussion, questions, and relevant links.',
+			'spam'   => 'Unsolicited or deceptive promotion, link farming, or automated spam.',
+			'review' => 'Ambiguous content or insufficient evidence to confidently classify as ham or spam.',
+		];
+
+		if ($apiType === ApiType::OpenAi) {
+			$choices = [];
+			foreach ($criteria as $val => $desc) {
+				$choices[] = [
+					'value'       => $val,
+					'description' => $desc,
+				];
+			}
+
+			$body = [
+				'model'     => $model,
+				'input'     => $truncated,
+				'questions' => [
+					[
+						'name'         => 'classification',
+						'type'         => 'choice',
+						'instructions' => $instructions,
+						'choices'      => $choices,
+					],
+				],
+			];
+		} else {
+			// TypeSafe System One format
+			$body = [
+				'model' => $model,
+				'state' => [
+					'content' => $truncated,
+				],
+				'questions' => [
+					'classification' => [
+						'type'         => 'choice',
+						'instructions' => $instructions,
+						'criteria'     => $criteria,
+					],
+				],
+			];
+		}
+
+		return json_encode($body, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+	}
+
 	private function parseResponse(string $response): ?array
 	{
 		global $txt;
@@ -392,13 +448,27 @@ final class SpamJudge
 			return null;
 		}
 
-		if (! is_array($data)) {
+		if (! is_array($data) || empty($data['answers'])) {
 			$this->logError($txt['spam_judge_error_invalid_response']);
 
 			return null;
 		}
 
-		$answer = $data['answers']['classification'] ?? null;
+		// Determine question answer structure
+		$answer = null;
+
+		if (isset($data['answers']['classification'])) {
+			// System One style map
+			$answer = $data['answers']['classification'];
+		} elseif (is_array($data['answers'])) {
+			// OpenAI Decisions style list
+			foreach ($data['answers'] as $item) {
+				if (is_array($item) && ($item['name'] ?? null) === 'classification') {
+					$answer = $item;
+					break;
+				}
+			}
+		}
 
 		if (
 			! is_array($answer)
@@ -412,7 +482,20 @@ final class SpamJudge
 			return null;
 		}
 
-		$probabilities = $answer['probabilities'];
+		// Normalize probabilities map: ['ham' => float, 'spam' => float, 'review' => float]
+		$probabilities = [];
+
+		// Check if OpenAI list-of-objects format: [ ['value' => 'ham', 'probability' => 0.05], ... ]
+		if (isset($answer['probabilities'][0]['value'])) {
+			foreach ($answer['probabilities'] as $probItem) {
+				if (isset($probItem['value'], $probItem['probability'])) {
+					$probabilities[(string) $probItem['value']] = $probItem['probability'];
+				}
+			}
+		} else {
+			// System One dictionary format: [ 'ham' => 0.05, ... ]
+			$probabilities = $answer['probabilities'];
+		}
 
 		foreach (['ham', 'spam', 'review'] as $option) {
 			if (
@@ -500,14 +583,28 @@ final class SpamJudge
 		$smcFunc['db_insert']('insert',
 			'{db_prefix}spam_judge_logs',
 			[
-				'log_time' => 'int', 'action_type' => 'string', 'id_member' => 'int',
-				'member_name' => 'string', 'email_address' => 'string', 'ip' => 'string',
-				'content_snippet' => 'string', 'verdict' => 'string', 'probabilities' => 'string',
-				'action_taken' => 'string',
+				'log_time'        => 'int',
+				'action_type'     => 'string',
+				'id_member'       => 'int',
+				'member_name'     => 'string',
+				'email_address'   => 'string',
+				'ip'              => 'string',
+				'content_snippet' => 'string',
+				'verdict'         => 'string',
+				'probabilities'   => 'string',
+				'action_taken'    => 'string',
 			],
 			[
-				time(), $type, $memberID, $name, $email, $_SERVER['REMOTE_ADDR'] ?? '',
-				mb_substr($content, 0, 500), $verdict, json_encode($probabilities), $action,
+				time(),
+				$type,
+				$memberID,
+				$name,
+				$email,
+				$_SERVER['REMOTE_ADDR'] ?? '',
+				mb_substr($content, 0, 500),
+				$verdict,
+				json_encode($probabilities),
+				$action,
 			],
 			['id_log']
 		);
@@ -517,7 +614,7 @@ final class SpamJudge
 	{
 		global $smcFunc, $txt;
 
-		$groups = [0 => $txt['spam_judge_no_group'] ?? '— none, do not restrict —'];
+		$groups = [0 => $txt['spam_judge_no_group']];
 
 		$query = $smcFunc['db_query']('', /** @lang text */ '
 			SELECT id_group, group_name
