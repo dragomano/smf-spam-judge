@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests;
 
 use Bugo\SpamJudge\ApiType;
+use Bugo\SpamJudge\Classifier;
+use Bugo\SpamJudge\ErrorLogger;
 use Bugo\SpamJudge\Http\CurlInitException;
 use Bugo\SpamJudge\Http\HttpClient;
 use Bugo\SpamJudge\Http\HttpClientException;
@@ -14,6 +16,7 @@ use Bugo\SpamJudge\Integration;
 use Bugo\SpamJudge\Strategy\AbstractStrategy;
 use Bugo\SpamJudge\Strategy\OpenAiStrategy;
 use Bugo\SpamJudge\Strategy\Result;
+use Bugo\SpamJudge\Strategy\StrategyFactory;
 use Bugo\SpamJudge\Strategy\SystemOneStrategy;
 use ReflectionMethod;
 use Testo\Assert;
@@ -23,6 +26,9 @@ use Testo\Test;
 
 #[Test]
 #[Covers(Integration::class)]
+#[Covers(Classifier::class)]
+#[Covers(ErrorLogger::class)]
+#[Covers(StrategyFactory::class)]
 #[Covers(OpenAiStrategy::class)]
 #[Covers(SystemOneStrategy::class)]
 #[Covers(AbstractStrategy::class)]
@@ -34,6 +40,31 @@ use Testo\Test;
 #[Covers(Result::class)]
 final class ModerationTest
 {
+    public function logsErrorsWithModuleNamePrefix(): void
+    {
+        Environment::reset();
+
+        (new ErrorLogger('Spam Judge'))('missing configuration');
+
+        Assert::same($GLOBALS['spam_judge_errors'], ['Spam Judge: missing configuration']);
+    }
+
+    public function createsStrategyBasedOnApiType(): void
+    {
+        Environment::reset();
+
+        $factory = new StrategyFactory();
+
+        Assert::instanceOf(
+            $factory->create(ApiType::SystemOne, 'http://127.0.0.1:1', 'secret', 'jev-latest'),
+            SystemOneStrategy::class,
+        );
+        Assert::instanceOf(
+            $factory->create(ApiType::OpenAi, 'http://127.0.0.1:1', 'secret', 'gpt-6-luna'),
+            OpenAiStrategy::class,
+        );
+    }
+
     public function restrictsConfidentSpamRegistrationAndLogsIt(): void
     {
         Environment::reset();

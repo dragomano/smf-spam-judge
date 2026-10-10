@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests;
 
+use Bugo\SpamJudge\Classifier;
 use Bugo\SpamJudge\Http\HttpClient;
 use Bugo\SpamJudge\Http\InvalidJsonException;
 use Bugo\SpamJudge\Integration;
+use Bugo\SpamJudge\Strategy\StrategyFactory;
 use Bugo\SpamJudge\Strategy\AbstractStrategy;
 use Bugo\SpamJudge\Strategy\InvalidAnswerException;
 use Bugo\SpamJudge\Strategy\InvalidProbabilitiesException;
@@ -22,6 +24,8 @@ use Testo\Test;
 
 #[Test]
 #[Covers(Integration::class)]
+#[Covers(Classifier::class)]
+#[Covers(StrategyFactory::class)]
 #[Covers(SystemOneStrategy::class)]
 #[Covers(OpenAiStrategy::class)]
 #[Covers(AbstractStrategy::class)]

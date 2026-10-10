@@ -11,19 +11,7 @@
 
 namespace Bugo\SpamJudge;
 
-use Bugo\SpamJudge\Http\CurlInitException;
-use Bugo\SpamJudge\Http\HttpClient;
-use Bugo\SpamJudge\Http\HttpClientException;
-use Bugo\SpamJudge\Http\HttpStatusException;
-use Bugo\SpamJudge\Http\InvalidJsonException;
-use Bugo\SpamJudge\Strategy\InvalidAnswerException;
-use Bugo\SpamJudge\Strategy\InvalidProbabilitiesException;
-use Bugo\SpamJudge\Strategy\InvalidResponseException;
-use Bugo\SpamJudge\Strategy\OpenAiStrategy;
 use Bugo\SpamJudge\Strategy\Result;
-use Bugo\SpamJudge\Strategy\StrategyInterface;
-use Bugo\SpamJudge\Strategy\SystemOneStrategy;
-use JsonException;
 
 if (! defined('SMF'))
 	die('No direct access...');
@@ -212,7 +200,7 @@ final class Integration
 		$config_vars = [
 			['check', 'spam_judge_enabled'],
 			['select', 'spam_judge_api_type', ApiType::options()],
-			['text', 'spam_judge_gateway_url', 60, 'desc' => $txt['spam_judge_gateway_url_desc']],
+			['text', 'spam_judge_gateway_url', 60],
 			['text', 'spam_judge_api_key', 60],
 			['text', 'spam_judge_model', 60],
 			['float', 'spam_judge_spam_threshold', 'step' => 0.01, 'max' => 1],
@@ -332,11 +320,12 @@ final class Integration
 
 		loadLanguage('SpamJudge/');
 
-		$gateway = trim($modSettings['spam_judge_gateway_url'] ?? '');
-		$apiKey  = trim($modSettings['spam_judge_api_key'] ?? '');
+		$gateway  = trim($modSettings['spam_judge_gateway_url'] ?? '');
+		$apiKey   = trim($modSettings['spam_judge_api_key'] ?? '');
+		$logError = new ErrorLogger(self::NAME);
 
 		if ($gateway === '' || $apiKey === '') {
-			$this->logError($txt['spam_judge_error_missing_config']);
+			$logError($txt['spam_judge_error_missing_config']);
 
 			return null;
 		}
@@ -344,40 +333,7 @@ final class Integration
 		$apiType = ApiType::tryFrom($modSettings['spam_judge_api_type'] ?? '') ?? ApiType::SystemOne;
 		$model   = trim($modSettings['spam_judge_model'] ?? '') ?: $apiType->defaultModel();
 
-		try {
-			return $this->strategy($apiType, $gateway, $apiKey, $model)->classify($content);
-		} catch (JsonException) {
-			$this->logError($txt['spam_judge_error_encode']);
-		} catch (CurlInitException) {
-			$this->logError($txt['spam_judge_error_curl_init']);
-		} catch (HttpStatusException $e) {
-			$this->logError(sprintf($txt['spam_judge_error_http'], $e->status));
-		} catch (InvalidJsonException) {
-			$this->logError($txt['spam_judge_error_invalid_json']);
-		} catch (HttpClientException $e) {
-			$this->logError(sprintf($txt['spam_judge_error_request'], $e->getMessage()));
-		} catch (InvalidAnswerException) {
-			$this->logError($txt['spam_judge_error_invalid_answer']);
-		} catch (InvalidProbabilitiesException) {
-			$this->logError($txt['spam_judge_error_invalid_probabilities']);
-		} catch (InvalidResponseException) {
-			$this->logError($txt['spam_judge_error_invalid_response']);
-		}
-
-		return null;
-	}
-
-	private function strategy(ApiType $apiType, string $gateway, string $apiKey, string $model): StrategyInterface
-	{
-		return match ($apiType) {
-			ApiType::OpenAi    => new OpenAiStrategy(new HttpClient(), $gateway, $apiKey, $model),
-			ApiType::SystemOne => new SystemOneStrategy(new HttpClient(), $gateway, $apiKey, $model),
-		};
-	}
-
-	private function logError(string $message): void
-	{
-		log_error(self::NAME . ': ' . $message);
+		return (new Classifier($gateway, $apiKey, $apiType, $model, $logError))->classify($content);
 	}
 
 	private function isSpamConfident(array $probabilities): bool
