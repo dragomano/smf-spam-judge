@@ -51,8 +51,10 @@ Spam Judge — модификация для [Simple Machines Forum (SMF) 2.1](h
 | [Codiv](https://codiv.ai) | `https://api.codiv.ai/v1/systemone` | TypeSafe System One | `openjev-latest` |
 | [Experiential Labs](https://www.experientiallabs.ai/) | `https://api.experientiallabs.ai/v1/systemone` | TypeSafe System One | `jev-latest` |
 | [Jev AI](https://jevmodel.org/how-to-use-jev/) | `https://api.typesafe.ai/v1/systemone` | TypeSafe System One | `jev-latest` |
-| [Vercel](https://vercel.com/changelog/ai-gateway-now-supports-typesafe-clients-and-http-api-for-jev) | `https://ai-gateway.vercel.sh/typesafe` | TypeSafe System One | `typesafe-ai/jev` |
-| [Decisions](https://developers.openai.com/api/docs/guides/decisions) | `https://api.openai.com/v1/decisions` | OpenAI Decisions | `gpt-6-luna` |
+| [Decisions API](https://developers.openai.com/api/docs/guides/decisions) | `https://api.openai.com/v1/decisions` | OpenAI Decisions | `gpt-6-luna` |
+| [Experiential Labs](https://www.experientiallabs.ai/) | `https://api.experientiallabs.ai/v1/decisions` | OpenAI Decisions | `gpt-6-luna-decisions` |
+| [Vercel](https://vercel.com/changelog/ai-gateway-now-supports-typesafe-clients-and-http-api-for-jev) | `https://ai-gateway.vercel.sh/typesafe` | [Browse AI Gateway Models](https://vercel.com/ai-gateway/models?modality=decision) | - |
+| [Tokenator](https://tokenator.cloud/?ref=948a8753) | `https://api.tokenator.cloud/v1` | [Browse AI Gateway Models](https://tokenator.cloud/models?output_modalities=decisions) | - |
 
 ## Контракт шлюза
 
