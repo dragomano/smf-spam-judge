@@ -2,250 +2,278 @@
 
 declare(strict_types=1);
 
-if (! defined('SMF')) {
-    define('SMF', true);
+// SMF function stubs must stay in the global namespace, so the Environment
+// class is declared in a separate Tests namespace block at the bottom.
+
+namespace {
+	if (! defined('SMF')) {
+		define('SMF', true);
+	}
+
+	if (! function_exists('add_integration_function')) {
+		function add_integration_function(string $hook, string $callback, bool $replace): void
+		{
+			$GLOBALS['spam_judge_hooks'][] = [$hook, $callback, $replace];
+		}
+	}
+
+	if (! function_exists('loadLanguage')) {
+		function loadLanguage(string $language): void
+		{
+		}
+	}
+
+	if (! function_exists('log_error')) {
+		function log_error(string $message): void
+		{
+			$GLOBALS['spam_judge_errors'][] = $message;
+		}
+	}
+
+	if (! function_exists('loadGeneralSettingParameters')) {
+		function loadGeneralSettingParameters(array $subActions, string $default): void
+		{
+			$GLOBALS['spam_judge_general_settings'] = [$subActions, $default];
+		}
+	}
+
+	if (! function_exists('prepareDBSettingContext')) {
+		function prepareDBSettingContext(array $config): void
+		{
+			$GLOBALS['spam_judge_prepared_settings'] = $config;
+		}
+	}
+
+	if (! function_exists('checkSession')) {
+		function checkSession(): void
+		{
+			$GLOBALS['spam_judge_check_session'] = true;
+		}
+	}
+
+	if (! function_exists('saveDBSettings')) {
+		function saveDBSettings(array $config): void
+		{
+			$GLOBALS['spam_judge_saved_settings'] = $config;
+		}
+	}
+
+	if (! function_exists('redirectexit')) {
+		function redirectexit(string $url): never
+		{
+			throw new RuntimeException('redirect:' . $url);
+		}
+	}
+
+	if (! function_exists('createList')) {
+		function createList(array $config): void
+		{
+			$GLOBALS['spam_judge_list'] = $config;
+		}
+	}
+
+	require_once __DIR__ . '/../vendor/autoload.php';
 }
 
-if (! function_exists('add_integration_function')) {
-    function add_integration_function(string $hook, string $callback, bool $replace): void
-    {
-        $GLOBALS['spam_judge_hooks'][] = [$hook, $callback, $replace];
-    }
-}
+namespace Tests {
+	use Random\RandomException;
+	use RuntimeException;
+	use stdClass;
+	use const DIRECTORY_SEPARATOR;
 
-if (! function_exists('loadLanguage')) {
-    function loadLanguage(string $language): void
-    {
-    }
-}
+	final class Environment
+	{
+		public static function reset(): void
+		{
+			$GLOBALS['modSettings'] = [];
+			$GLOBALS['user_info']   = [];
 
-if (! function_exists('log_error')) {
-    function log_error(string $message): void
-    {
-        $GLOBALS['spam_judge_errors'][] = $message;
-    }
-}
+			$GLOBALS['txt'] = [
+				'spam_judge_enabled'                     => 'Enable %s',
+				'spam_judge_error_invalid_json'          => 'invalid JSON',
+				'spam_judge_error_invalid_response'      => 'invalid response',
+				'spam_judge_error_invalid_answer'        => 'invalid answer',
+				'spam_judge_error_invalid_probabilities' => 'invalid probabilities',
+				'spam_judge_error_missing_config'        => 'missing configuration',
+				'spam_judge_error_encode'                => 'encode failure',
+				'spam_judge_error_curl_init'             => 'curl init failure',
+				'spam_judge_error_request'               => 'request failure: %s',
+				'spam_judge_error_http'                  => 'http failure: %d',
+				'spam_judge_gateway_url_desc'            => 'Gateway URL',
+				'spam_judge_no_group'                    => 'None',
+				'logs'                                   => 'Logs',
+				'spam_judge_action_none'                 => 'None',
+				'spam_judge_action_restricted'           => 'Restricted',
+				'spam_judge_action_unapproved'           => 'Unapproved',
+				'spam_judge_no_items'                    => 'No items',
+				'date'                                   => 'Date',
+				'spam_judge_type'                        => 'Type',
+				'who_member'                             => 'Member',
+				'spam_judge_verdict'                     => 'Verdict',
+				'spam_judge_action'                      => 'Action',
+			];
 
-if (! function_exists('loadGeneralSettingParameters')) {
-    function loadGeneralSettingParameters(array $subActions, string $default): void
-    {
-        $GLOBALS['spam_judge_general_settings'] = [$subActions, $default];
-    }
-}
+			$GLOBALS['spam_judge_hooks']             = [];
+			$GLOBALS['spam_judge_errors']            = [];
+			$GLOBALS['spam_judge_inserts']           = [];
+			$GLOBALS['spam_judge_queries']           = [];
+			$GLOBALS['spam_judge_db_rows']           = [];
+			$GLOBALS['spam_judge_prepared_settings'] = null;
+			$GLOBALS['spam_judge_general_settings']  = null;
+			$GLOBALS['spam_judge_gateway_routers']   = [];
+			$GLOBALS['spam_judge_gateway_capture']   = null;
+			$GLOBALS['spam_judge_gateway_captures']  = [];
 
-if (! function_exists('prepareDBSettingContext')) {
-    function prepareDBSettingContext(array $config): void
-    {
-        $GLOBALS['spam_judge_prepared_settings'] = $config;
-    }
-}
+			$GLOBALS['smcFunc'] = [
+				'db_insert' => static function (...$arguments): void {
+					$GLOBALS['spam_judge_inserts'][] = $arguments;
+				},
+				'db_query' => static function (string $identifier, string $query, array $params = []): object {
+					$GLOBALS['spam_judge_queries'][] = ['query' => $query, 'params' => $params];
 
-if (! function_exists('checkSession')) {
-    function checkSession(): void
-    {
-        $GLOBALS['spam_judge_check_session'] = true;
-    }
-}
+					return new stdClass();
+				},
+				'db_fetch_assoc' => static function (): ?array {
+					return array_shift($GLOBALS['spam_judge_db_rows']);
+				},
+				'db_free_result' => static function (): void {
+				},
+			];
 
-if (! function_exists('saveDBSettings')) {
-    function saveDBSettings(array $config): void
-    {
-        $GLOBALS['spam_judge_saved_settings'] = $config;
-    }
-}
+			$_GET     = [];
+			$_POST    = [];
+			$_REQUEST = [];
 
-if (! function_exists('redirectexit')) {
-    function redirectexit(string $url): never
-    {
-        throw new \RuntimeException('redirect:' . $url);
-    }
-}
+			$_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+		}
 
-if (! function_exists('createList')) {
-    function createList(array $config): void
-    {
-        $GLOBALS['spam_judge_list'] = $config;
-    }
-}
+		/**
+		 * @throws RandomException
+		 */
+		public static function startGateway(string $verdict, string $apiType = 'system_one'): array
+		{
+			$systemOne = json_encode([
+				'answers' => [
+					'classification' => [
+						'type'          => 'choice',
+						'choice'        => $verdict,
+						'probabilities' => ['ham' => 0.01, 'spam' => 0.98, 'review' => 0.01],
+					],
+				],
+			]);
 
-require_once __DIR__ . '/../src/Sources/SpamJudge/Integration.php';
-require_once __DIR__ . '/../src/Sources/SpamJudge/ApiType.php';
+			$openai = json_encode([
+				'answers' => [
+					[
+						'name'          => 'classification',
+						'type'          => 'choice',
+						'choice'        => $verdict,
+						'probability'   => $verdict === 'spam' ? 0.98 : ($verdict === 'ham' ? 0.98 : 0.02),
+						'probabilities' => [
+							['value' => 'ham', 'probability' => $verdict === 'ham' ? 0.98 : 0.01],
+							['value' => 'spam', 'probability' => $verdict === 'spam' ? 0.98 : 0.01],
+							['value' => 'review', 'probability' => $verdict === 'review' ? 0.98 : 0.01],
+						],
+					],
+				],
+			]);
 
-final class Environment
-{
-    public static function reset(): void
-    {
-        $GLOBALS['modSettings'] = [];
-        $GLOBALS['user_info']   = [];
+			$body = $apiType === 'openai' ? $openai : $systemOne;
 
-        $GLOBALS['txt'] = [
-            'spam_judge_enabled'                     => 'Enable %s',
-            'spam_judge_error_invalid_json'          => 'invalid JSON',
-            'spam_judge_error_invalid_response'      => 'invalid response',
-            'spam_judge_error_invalid_answer'        => 'invalid answer',
-            'spam_judge_error_invalid_probabilities' => 'invalid probabilities',
-            'spam_judge_error_missing_config'        => 'missing configuration',
-            'spam_judge_error_encode'                => 'encode failure',
-            'spam_judge_error_curl_init'             => 'curl init failure',
-            'spam_judge_error_request'               => 'request failure: %s',
-            'spam_judge_error_http'                  => 'http failure: %d',
-            'spam_judge_gateway_url_desc'            => 'Gateway URL',
-            'spam_judge_no_group'                    => 'None',
-            'logs'                                   => 'Logs',
-            'spam_judge_action_none'                 => 'None',
-            'spam_judge_action_restricted'           => 'Restricted',
-            'spam_judge_action_unapproved'           => 'Unapproved',
-            'spam_judge_no_items'                    => 'No items',
-            'date'                                   => 'Date',
-            'spam_judge_type'                        => 'Type',
-            'who_member'                             => 'Member',
-            'spam_judge_verdict'                     => 'Verdict',
-            'spam_judge_action'                      => 'Action',
-        ];
+			$capture = tempnam(sys_get_temp_dir(), 'spam-judge-capture-');
+			$GLOBALS['spam_judge_gateway_capture'] = $capture;
+			$GLOBALS['spam_judge_gateway_captures'][] = $capture;
 
-        $GLOBALS['spam_judge_hooks']             = [];
-        $GLOBALS['spam_judge_errors']            = [];
-        $GLOBALS['spam_judge_inserts']           = [];
-        $GLOBALS['spam_judge_queries']           = [];
-        $GLOBALS['spam_judge_db_rows']           = [];
-        $GLOBALS['spam_judge_prepared_settings'] = null;
-        $GLOBALS['spam_judge_general_settings']  = null;
-        $GLOBALS['spam_judge_gateway_routers']   = [];
-        $GLOBALS['spam_judge_gateway_capture']   = null;
-        $GLOBALS['spam_judge_gateway_captures']  = [];
+			return self::launchGateway(
+				'<?php file_put_contents(' . var_export($capture, true) . ', file_get_contents("php://input")); echo '
+				. var_export($body, true) . ';'
+			);
+		}
 
-        $GLOBALS['smcFunc'] = [
-            'db_insert' => static function (...$arguments): void {
-                $GLOBALS['spam_judge_inserts'][] = $arguments;
-            },
-            'db_query' => static function (string $identifier, string $query, array $params = []): object {
-                $GLOBALS['spam_judge_queries'][] = ['query' => $query, 'params' => $params];
+		public static function receivedRequest(): string
+		{
+			$capture = $GLOBALS['spam_judge_gateway_capture'] ?? null;
 
-                return new \stdClass();
-            },
-            'db_fetch_assoc' => static function (): ?array {
-                return array_shift($GLOBALS['spam_judge_db_rows']);
-            },
-            'db_free_result' => static function (): void {
-            },
-        ];
+			return is_string($capture) && is_file($capture) ? (string) file_get_contents($capture) : '';
+		}
 
-        $_GET     = [];
-        $_POST    = [];
-        $_REQUEST = [];
+		/**
+		 * @throws RandomException
+		 */
+		public static function startFailingGateway(): array
+		{
+			return self::launchGateway('<?php http_response_code(500); echo "error";');
+		}
 
-        $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
-    }
+		/**
+		 * @throws RandomException
+		 */
+		public static function startRawGateway(string $body): array
+		{
+			return self::launchGateway('<?php echo ' . var_export($body, true) . ';');
+		}
 
-    public static function startGateway(string $verdict, string $apiType = 'system_one'): array
-    {
-        $systemOne = json_encode([
-            'answers' => [
-                'classification' => [
-                    'type'          => 'choice',
-                    'choice'        => $verdict,
-                    'probabilities' => ['ham' => 0.01, 'spam' => 0.98, 'review' => 0.01],
-                ],
-            ],
-        ]);
+		/**
+		 * @throws RandomException
+		 */
+		private static function launchGateway(string $routerBody): array
+		{
+			$router = tempnam(sys_get_temp_dir(), 'spam-judge-router-');
 
-        $openai = json_encode([
-            'answers' => [
-                [
-                    'name'          => 'classification',
-                    'type'          => 'choice',
-                    'choice'        => $verdict,
-                    'probability'   => $verdict === 'spam' ? 0.98 : ($verdict === 'ham' ? 0.98 : 0.02),
-                    'probabilities' => [
-                        ['value' => 'ham', 'probability' => $verdict === 'ham' ? 0.98 : 0.01],
-                        ['value' => 'spam', 'probability' => $verdict === 'spam' ? 0.98 : 0.01],
-                        ['value' => 'review', 'probability' => $verdict === 'review' ? 0.98 : 0.01],
-                    ],
-                ],
-            ],
-        ]);
+			file_put_contents($router, $routerBody);
 
-        $body = $apiType === 'openai' ? $openai : $systemOne;
+			$port = random_int(20000, 40000);
+			$null = DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
 
-        $capture = tempnam(sys_get_temp_dir(), 'spam-judge-capture-');
-        $GLOBALS['spam_judge_gateway_capture'] = $capture;
-        $GLOBALS['spam_judge_gateway_captures'][] = $capture;
+			// Array form skips the shell wrapper, so $process is the PHP server itself on
+			// every platform and proc_terminate() can reliably shut it down afterward.
+			$process = proc_open(
+				[PHP_BINARY, '-S', '127.0.0.1:' . $port, $router],
+				[1 => ['file', $null, 'w'], 2 => ['file', $null, 'w']],
+				$pipes,
+			);
 
-        return self::launchGateway(
-            '<?php file_put_contents(' . var_export($capture, true) . ', file_get_contents("php://input")); echo '
-            . var_export($body, true) . ';'
-        );
-    }
+			if (! is_resource($process)) {
+				throw new RuntimeException('Unable to start test gateway.');
+			}
 
-    public static function receivedRequest(): string
-    {
-        $capture = $GLOBALS['spam_judge_gateway_capture'] ?? null;
+			for ($attempt = 0; $attempt < 20; $attempt++) {
+				$socket = @fsockopen('127.0.0.1', $port);
 
-        return is_string($capture) && is_file($capture) ? (string) file_get_contents($capture) : '';
-    }
+				if ($socket !== false) {
+					fclose($socket);
+					break;
+				}
 
-    public static function startFailingGateway(): array
-    {
-        return self::launchGateway('<?php http_response_code(500); echo "error";');
-    }
+				usleep(10_000);
+			}
 
-    private static function launchGateway(string $routerBody): array
-    {
-        $router = tempnam(sys_get_temp_dir(), 'spam-judge-router-');
+			$GLOBALS['spam_judge_gateway_routers'][] = $router;
 
-        file_put_contents($router, $routerBody);
+			return [$process, 'http://127.0.0.1:' . $port];
+		}
 
-        $port = random_int(20000, 40000);
-        $null = \DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
+		public static function stopGateway(mixed $process): void
+		{
+			if (is_resource($process)) {
+				proc_terminate($process);
+				proc_close($process);
+			}
 
-        // Array form skips the shell wrapper, so $process is the PHP server itself on
-        // every platform and proc_terminate() can reliably shut it down afterwards.
-        $process = proc_open(
-            [PHP_BINARY, '-S', '127.0.0.1:' . $port, $router],
-            [1 => ['file', $null, 'w'], 2 => ['file', $null, 'w']],
-            $pipes,
-        );
+			foreach ($GLOBALS['spam_judge_gateway_routers'] as $router) {
+				if (is_file($router)) {
+					unlink($router);
+				}
+			}
 
-        if (! is_resource($process)) {
-            throw new \RuntimeException('Unable to start test gateway.');
-        }
+			foreach ($GLOBALS['spam_judge_gateway_captures'] as $capture) {
+				if (is_file($capture)) {
+					unlink($capture);
+				}
+			}
 
-        for ($attempt = 0; $attempt < 20; $attempt++) {
-            $socket = @fsockopen('127.0.0.1', $port);
-
-            if ($socket !== false) {
-                fclose($socket);
-                break;
-            }
-
-            usleep(10_000);
-        }
-
-        $GLOBALS['spam_judge_gateway_routers'][] = $router;
-
-        return [$process, 'http://127.0.0.1:' . $port];
-    }
-
-    public static function stopGateway(mixed $process): void
-    {
-        if (is_resource($process)) {
-            proc_terminate($process);
-            proc_close($process);
-        }
-
-        foreach ($GLOBALS['spam_judge_gateway_routers'] as $router) {
-            if (is_file($router)) {
-                unlink($router);
-            }
-        }
-
-        foreach ($GLOBALS['spam_judge_gateway_captures'] as $capture) {
-            if (is_file($capture)) {
-                unlink($capture);
-            }
-        }
-
-        $GLOBALS['spam_judge_gateway_routers'] = [];
-        $GLOBALS['spam_judge_gateway_captures'] = [];
-    }
+			$GLOBALS['spam_judge_gateway_routers'] = [];
+			$GLOBALS['spam_judge_gateway_captures'] = [];
+		}
+	}
 }

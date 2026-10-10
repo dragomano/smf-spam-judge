@@ -11,6 +11,18 @@
 
 namespace Bugo\SpamJudge;
 
+use Bugo\SpamJudge\Http\CurlInitException;
+use Bugo\SpamJudge\Http\HttpClient;
+use Bugo\SpamJudge\Http\HttpClientException;
+use Bugo\SpamJudge\Http\HttpStatusException;
+use Bugo\SpamJudge\Http\InvalidJsonException;
+use Bugo\SpamJudge\Strategy\InvalidAnswerException;
+use Bugo\SpamJudge\Strategy\InvalidProbabilitiesException;
+use Bugo\SpamJudge\Strategy\InvalidResponseException;
+use Bugo\SpamJudge\Strategy\OpenAiStrategy;
+use Bugo\SpamJudge\Strategy\Result;
+use Bugo\SpamJudge\Strategy\StrategyInterface;
+use Bugo\SpamJudge\Strategy\SystemOneStrategy;
 use JsonException;
 
 if (! defined('SMF'))
@@ -57,7 +69,8 @@ final class Integration
 		if ($result === null)
 			return;
 
-		[$verdict, $probabilities] = $result;
+		$verdict       = $result->verdict;
+		$probabilities = $result->probabilities;
 
 		$action = 'none';
 
@@ -106,7 +119,8 @@ final class Integration
 		if ($result === null)
 			return;
 
-		[$verdict, $probabilities] = $result;
+		$verdict       = $result->verdict;
+		$probabilities = $result->probabilities;
 
 		$action = 'none';
 
@@ -312,7 +326,7 @@ final class Integration
 		return (int) $row['total'];
 	}
 
-	private function classify(string $content): ?array
+	private function classify(string $content): ?Result
 	{
 		global $modSettings, $txt;
 
@@ -331,191 +345,34 @@ final class Integration
 		$model   = trim($modSettings['spam_judge_model'] ?? '') ?: $apiType->defaultModel();
 
 		try {
-			$payload = $this->buildPayload($apiType, $model, $content);
+			return $this->strategy($apiType, $gateway, $apiKey, $model)->classify($content);
 		} catch (JsonException) {
 			$this->logError($txt['spam_judge_error_encode']);
-
-			return null;
-		}
-
-		$ch = curl_init($gateway);
-
-		if ($ch === false) {
+		} catch (CurlInitException) {
 			$this->logError($txt['spam_judge_error_curl_init']);
-
-			return null;
-		}
-
-		curl_setopt_array($ch, [
-			CURLOPT_POST           => true,
-			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_CONNECTTIMEOUT => 10,
-			CURLOPT_TIMEOUT        => 60,
-			CURLOPT_HTTPHEADER     => [
-				'Content-Type: application/json',
-				'Authorization: Bearer ' . $apiKey,
-			],
-			CURLOPT_POSTFIELDS => $payload,
-		]);
-
-		$response = curl_exec($ch);
-		$error    = curl_error($ch);
-		$status   = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-		curl_close($ch);
-
-		if ($response === false) {
-			$this->logError(sprintf($txt['spam_judge_error_request'], $error));
-
-			return null;
-		}
-
-		if ($status < 200 || $status >= 300) {
-			$this->logError(sprintf($txt['spam_judge_error_http'], $status));
-
-			return null;
-		}
-
-		return $this->parseResponse($response);
-	}
-
-	/**
-	 * @throws JsonException
-	 */
-	private function buildPayload(ApiType $apiType, string $model, string $content): string
-	{
-		$truncated = mb_substr($content, 0, 10000);
-
-		$instructions = 'Classify the supplied forum content for anti-spam moderation. '
-			. 'Choose spam only for clearly unsolicited or deceptive promotional content. '
-			. 'Choose ham for legitimate user content. '
-			. 'Choose review when the content is ambiguous or there is not enough evidence.';
-
-		$criteria = [
-			'ham'    => 'Legitimate forum content, including ordinary discussion, questions, and relevant links.',
-			'spam'   => 'Unsolicited or deceptive promotion, link farming, or automated spam.',
-			'review' => 'Ambiguous content or insufficient evidence to confidently classify as ham or spam.',
-		];
-
-		if ($apiType === ApiType::OpenAi) {
-			$choices = [];
-			foreach ($criteria as $val => $desc) {
-				$choices[] = [
-					'value'       => $val,
-					'description' => $desc,
-				];
-			}
-
-			$body = [
-				'model'     => $model,
-				'input'     => $truncated,
-				'questions' => [
-					[
-						'name'         => 'classification',
-						'type'         => 'choice',
-						'instructions' => $instructions,
-						'choices'      => $choices,
-					],
-				],
-			];
-		} else {
-			// TypeSafe System One format
-			$body = [
-				'model' => $model,
-				'state' => [
-					'content' => $truncated,
-				],
-				'questions' => [
-					'classification' => [
-						'type'         => 'choice',
-						'instructions' => $instructions,
-						'criteria'     => $criteria,
-					],
-				],
-			];
-		}
-
-		return json_encode($body, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-	}
-
-	private function parseResponse(string $response): ?array
-	{
-		global $txt;
-
-		try {
-			$data = json_decode($response, true, 512, JSON_THROW_ON_ERROR);
-		} catch (JsonException) {
+		} catch (HttpStatusException $e) {
+			$this->logError(sprintf($txt['spam_judge_error_http'], $e->status));
+		} catch (InvalidJsonException) {
 			$this->logError($txt['spam_judge_error_invalid_json']);
-
-			return null;
-		}
-
-		if (! is_array($data) || empty($data['answers'])) {
-			$this->logError($txt['spam_judge_error_invalid_response']);
-
-			return null;
-		}
-
-		// Determine question answer structure
-		$answer = null;
-
-		if (isset($data['answers']['classification'])) {
-			// System One style map
-			$answer = $data['answers']['classification'];
-		} elseif (is_array($data['answers'])) {
-			// OpenAI Decisions style list
-			foreach ($data['answers'] as $item) {
-				if (is_array($item) && ($item['name'] ?? null) === 'classification') {
-					$answer = $item;
-					break;
-				}
-			}
-		}
-
-		if (
-			! is_array($answer)
-			|| ($answer['type'] ?? null) !== 'choice'
-			|| ! in_array($answer['choice'] ?? null, ['ham', 'spam', 'review'], true)
-			|| empty($answer['probabilities'])
-			|| ! is_array($answer['probabilities'])
-		) {
+		} catch (HttpClientException $e) {
+			$this->logError(sprintf($txt['spam_judge_error_request'], $e->getMessage()));
+		} catch (InvalidAnswerException) {
 			$this->logError($txt['spam_judge_error_invalid_answer']);
-
-			return null;
+		} catch (InvalidProbabilitiesException) {
+			$this->logError($txt['spam_judge_error_invalid_probabilities']);
+		} catch (InvalidResponseException) {
+			$this->logError($txt['spam_judge_error_invalid_response']);
 		}
 
-		// Normalize probabilities map: ['ham' => float, 'spam' => float, 'review' => float]
-		$probabilities = [];
+		return null;
+	}
 
-		// Check if OpenAI list-of-objects format: [ ['value' => 'ham', 'probability' => 0.05], ... ]
-		if (isset($answer['probabilities'][0]['value'])) {
-			foreach ($answer['probabilities'] as $probItem) {
-				if (isset($probItem['value'], $probItem['probability'])) {
-					$probabilities[(string) $probItem['value']] = $probItem['probability'];
-				}
-			}
-		} else {
-			// System One dictionary format: [ 'ham' => 0.05, ... ]
-			$probabilities = $answer['probabilities'];
-		}
-
-		foreach (['ham', 'spam', 'review'] as $option) {
-			if (
-				! isset($probabilities[$option])
-				|| ! is_numeric($probabilities[$option])
-				|| ! is_finite((float) $probabilities[$option])
-				|| (float) $probabilities[$option] < 0
-				|| (float) $probabilities[$option] > 1
-			) {
-				$this->logError($txt['spam_judge_error_invalid_probabilities']);
-
-				return null;
-			}
-
-			$probabilities[$option] = (float) $probabilities[$option];
-		}
-
-		return [$answer['choice'], $probabilities];
+	private function strategy(ApiType $apiType, string $gateway, string $apiKey, string $model): StrategyInterface
+	{
+		return match ($apiType) {
+			ApiType::OpenAi    => new OpenAiStrategy(new HttpClient(), $gateway, $apiKey, $model),
+			ApiType::SystemOne => new SystemOneStrategy(new HttpClient(), $gateway, $apiKey, $model),
+		};
 	}
 
 	private function logError(string $message): void

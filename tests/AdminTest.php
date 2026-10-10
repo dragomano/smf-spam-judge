@@ -2,15 +2,18 @@
 
 declare(strict_types=1);
 
+namespace Tests;
+
+use Bugo\SpamJudge\ApiType;
 use Bugo\SpamJudge\Integration;
+use RuntimeException;
 use Testo\Assert;
 use Testo\Codecov\Covers;
 use Testo\Test;
 
-require_once __DIR__ . '/Environment.php';
-
 #[Test]
 #[Covers(Integration::class)]
+#[Covers(ApiType::class)]
 final class AdminTest
 {
     public function settingsReturnsConfigurationAndUsesDefaultModel(): void

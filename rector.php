@@ -2,6 +2,10 @@
 
 use Rector\Config\RectorConfig;
 
+if (! defined('SMF')) {
+	define('SMF', 'rector');
+}
+
 return RectorConfig::configure()
 	->withPaths([
 		__DIR__ . '/src/Sources',

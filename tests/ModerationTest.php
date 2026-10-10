@@ -2,17 +2,36 @@
 
 declare(strict_types=1);
 
+namespace Tests;
+
 use Bugo\SpamJudge\ApiType;
+use Bugo\SpamJudge\Http\CurlInitException;
+use Bugo\SpamJudge\Http\HttpClient;
+use Bugo\SpamJudge\Http\HttpClientException;
+use Bugo\SpamJudge\Http\HttpStatusException;
+use Bugo\SpamJudge\Http\InvalidJsonException;
 use Bugo\SpamJudge\Integration;
+use Bugo\SpamJudge\Strategy\AbstractStrategy;
+use Bugo\SpamJudge\Strategy\OpenAiStrategy;
+use Bugo\SpamJudge\Strategy\Result;
+use Bugo\SpamJudge\Strategy\SystemOneStrategy;
+use ReflectionMethod;
 use Testo\Assert;
 use Testo\Codecov\Covers;
 use Testo\Data\DataSet;
 use Testo\Test;
 
-require_once __DIR__ . '/Environment.php';
-
 #[Test]
 #[Covers(Integration::class)]
+#[Covers(OpenAiStrategy::class)]
+#[Covers(SystemOneStrategy::class)]
+#[Covers(AbstractStrategy::class)]
+#[Covers(HttpClient::class)]
+#[Covers(HttpClientException::class)]
+#[Covers(CurlInitException::class)]
+#[Covers(HttpStatusException::class)]
+#[Covers(InvalidJsonException::class)]
+#[Covers(Result::class)]
 final class ModerationTest
 {
     public function restrictsConfidentSpamRegistrationAndLogsIt(): void
@@ -207,9 +226,9 @@ final class ModerationTest
     {
         Environment::reset();
 
-        $body = $this->buildPayload(ApiType::SystemOne, 'jev-latest', 'hello');
+        $body = $this->buildBody(ApiType::SystemOne, 'jev-latest', 'hello');
 
-        Assert::same($body, json_encode([
+        Assert::same($body, [
             'model'     => 'jev-latest',
             'state'     => ['content' => 'hello'],
             'questions' => [
@@ -223,16 +242,16 @@ final class ModerationTest
                     ],
                 ],
             ],
-        ]));
+        ]);
     }
 
     public function buildsOpenAiPayload(): void
     {
         Environment::reset();
 
-        $body = $this->buildPayload(ApiType::OpenAi, 'gpt-6-luna', 'hello');
+        $body = $this->buildBody(ApiType::OpenAi, 'gpt-6-luna', 'hello');
 
-        Assert::same($body, json_encode([
+        Assert::same($body, [
             'model'     => 'gpt-6-luna',
             'input'     => 'hello',
             'questions' => [
@@ -247,7 +266,7 @@ final class ModerationTest
                     ],
                 ],
             ],
-        ]));
+        ]);
     }
 
     #[DataSet(['system_one'], 'System One default model')]
@@ -276,49 +295,7 @@ final class ModerationTest
         Assert::same($GLOBALS['spam_judge_errors'], []);
     }
 
-    public function parsesSystemOneResponse(): void
-    {
-        Environment::reset();
-
-        $result = $this->parseResponse(json_encode([
-            'answers' => [
-                'classification' => [
-                    'type'          => 'choice',
-                    'choice'        => 'spam',
-                    'probabilities' => ['ham' => '0.01', 'spam' => 1, 'review' => 0.0],
-                ],
-            ],
-        ]));
-
-        Assert::same($result, ['spam', ['ham' => 0.01, 'spam' => 1.0, 'review' => 0.0]]);
-        Assert::same($GLOBALS['spam_judge_errors'], []);
-    }
-
-    public function parsesOpenAiResponse(): void
-    {
-        Environment::reset();
-
-        $result = $this->parseResponse(json_encode([
-            'answers' => [
-                [
-                    'name'          => 'classification',
-                    'type'          => 'choice',
-                    'choice'        => 'spam',
-                    'probability'   => 0.98,
-                    'probabilities' => [
-                        ['value' => 'ham', 'probability' => 0.01],
-                        ['value' => 'spam', 'probability' => 0.98],
-                        ['value' => 'review', 'probability' => 0.01],
-                    ],
-                ],
-            ],
-        ]));
-
-        Assert::same($result, ['spam', ['ham' => 0.01, 'spam' => 0.98, 'review' => 0.01]]);
-        Assert::same($GLOBALS['spam_judge_errors'], []);
-    }
-
-    private function classify(string $content): ?array
+    private function classify(string $content): ?Result
     {
         $method = new ReflectionMethod(Integration::class, 'classify');
         $method->setAccessible(true);
@@ -326,19 +303,15 @@ final class ModerationTest
         return $method->invoke(new Integration(), $content);
     }
 
-    private function buildPayload(ApiType $apiType, string $model, string $content): string
+    private function buildBody(ApiType $apiType, string $model, string $content): array
     {
-        $method = new ReflectionMethod(Integration::class, 'buildPayload');
+        $strategy = $apiType === ApiType::OpenAi
+            ? new OpenAiStrategy(new HttpClient(), 'http://127.0.0.1:1', 'secret', $model)
+            : new SystemOneStrategy(new HttpClient(), 'http://127.0.0.1:1', 'secret', $model);
+
+        $method = new ReflectionMethod($strategy, 'buildBody');
         $method->setAccessible(true);
 
-        return $method->invoke(new Integration(), $apiType, $model, $content);
-    }
-
-    private function parseResponse(string $response): ?array
-    {
-        $method = new ReflectionMethod(Integration::class, 'parseResponse');
-        $method->setAccessible(true);
-
-        return $method->invoke(new Integration(), $response);
+        return $method->invoke($strategy, $content);
     }
 }

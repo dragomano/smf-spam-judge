@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
+namespace Tests;
+
 use Bugo\SpamJudge\Integration;
 use Testo\Assert;
 use Testo\Codecov\Covers;
 use Testo\Test;
-
-require_once __DIR__ . '/Environment.php';
 
 #[Test]
 #[Covers(Integration::class)]
